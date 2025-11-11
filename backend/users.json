@@ -1,10 +1,4 @@
 [
-  {
-    "username": "vinothkumar",
-    "password": "V@inoth500"
-  },
-  {
-    "username": "Admin",
-    "password": "V@inoth500"
-  }
+  { "username": "vinothkumar", "password": "V@inoth500" },
+  { "username": "Admin", "password": "V@inoth500" }
 ]
