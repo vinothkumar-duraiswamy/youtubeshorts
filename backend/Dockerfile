@@ -1,23 +1,20 @@
-# Use Python base image
-FROM python:3.12-slim
+# ✅ Base Image (Python + FFmpeg included)
+FROM jrottenberg/ffmpeg:6.0-ubuntu
 
-# Install system dependencies including FFmpeg
-RUN apt-get update && apt-get install -y ffmpeg && apt-get clean
+# ✅ Install Python
+RUN apt-get update && apt-get install -y python3 python3-pip python3-dev
 
-# Create working dir
+# ✅ Set work directory
 WORKDIR /app
 
-# Copy requirements
-COPY requirements.txt .
+# ✅ Copy project files
+COPY . /app
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# ✅ Install Python dependencies
+RUN pip3 install --no-cache-dir -r backend/requirements.txt
 
-# Copy backend source code
-COPY . .
+# ✅ Expose Render port
+ENV PORT=10000
 
-# Expose port 5000
-EXPOSE 5000
-
-# Gunicorn command
-CMD ["gunicorn", "-w", "2", "-b", "0.0.0.0:5000", "app:app"]
+# ✅ Run Gunicorn server
+CMD ["gunicorn", "--bind", "0.0.0.0:10000", "backend.app:app"]
