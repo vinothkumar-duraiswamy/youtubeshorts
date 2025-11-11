@@ -13,8 +13,8 @@ COPY . /app
 # ✅ Install Python dependencies
 RUN pip3 install --no-cache-dir -r backend/requirements.txt
 
-# ✅ Expose Railway's PORT (important)
+# ✅ Expose Railway’s dynamic port
 EXPOSE 5000
 
-# ✅ Start Flask using Gunicorn
-CMD ["gunicorn", "-b", "0.0.0.0:5000", "backend.app:app"]
+# ✅ USE RAILWAY PORT IN GUNICORN (VERY IMPORTANT)
+CMD ["bash", "-c", "gunicorn -b 0.0.0.0:$PORT backend.app:app"]
