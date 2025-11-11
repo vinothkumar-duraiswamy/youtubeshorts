@@ -6,6 +6,3 @@ services:
     region: singapore
     dockerfilePath: ./Dockerfile
     healthCheckPath: /
-    envVars:
-      - key: PORT
-        value: 10000
