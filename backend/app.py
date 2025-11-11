@@ -1,43 +1,30 @@
 import os
 import uuid
+from flask import Flask, request, jsonify, send_file
 import subprocess
-from flask import Flask, request, send_file, jsonify
-from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)
 
-UPLOAD_DIR = "/app/uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+UPLOAD_FOLDER = "/app/uploads"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+# ✅ Temporary login
+USERNAME = "vinothkumar"
+PASSWORD = "admin123"
 
-# ✅ -------- Helper to save uploaded files --------
-def save_file(file):
-    if not file:
-        return None
-    
-    ext = file.filename.split(".")[-1]
-    filename = f"{uuid.uuid4().hex}.{ext}"
-    filepath = os.path.join(UPLOAD_DIR, filename)
-    file.save(filepath)
-    return filepath
-
-
-# ✅ -------- LOGIN API --------
 @app.route("/api/login", methods=["POST"])
 def login():
     username = request.form.get("username")
     password = request.form.get("password")
 
-    if username == "admin" and password == "admin":
+    if username == USERNAME and password == PASSWORD:
         return jsonify({"success": True})
-    else:
-        return jsonify({"success": False})
+    return jsonify({"success": False}), 401
 
 
-# ✅ -------- Generate Video API --------
 @app.route("/api/generate_video", methods=["POST"])
 def generate_video():
+
     print("✅ Received /api/generate_video request")
 
     poster = request.files.get("poster")
@@ -45,60 +32,106 @@ def generate_video():
     voice_over = request.files.get("voice_over")
 
     if not poster:
-        return jsonify({"error": "Poster image missing"}), 400
-    if not bg_music:
-        return jsonify({"error": "Background audio missing"}), 400
+        return jsonify({"error": "Poster image required"}), 400
 
-    poster_path = save_file(poster)
-    bg_path = save_file(bg_music)
-    voice_path = save_file(voice_over) if voice_over else None
+    poster_path = os.path.join(UPLOAD_FOLDER, f"poster_{uuid.uuid4()}.png")
+    poster.save(poster_path)
 
-    final_path = f"/app/uploads/final_{uuid.uuid4().hex}.mp4"
+    bg_path = None
+    if bg_music:
+        bg_path = os.path.join(UPLOAD_FOLDER, f"bg_{uuid.uuid4()}.mp3")
+        bg_music.save(bg_path)
 
-    # ✅ Build FFmpeg command
-    cmd = [
+    voice_path = None
+    if voice_over:
+        voice_path = os.path.join(UPLOAD_FOLDER, f"voice_{uuid.uuid4()}.mp3")
+        voice_over.save(voice_path)
+
+    output_path = os.path.join(UPLOAD_FOLDER, f"final_{uuid.uuid4()}.mp4")
+
+    # ✅ Build FFmpeg filters
+    base_cmd = [
         "ffmpeg", "-y",
-        "-loop", "1", "-i", poster_path,
+        "-loop", "1",
+        "-i", poster_path,
         "-t", "15",
-        "-i", bg_path
     ]
 
-    if voice_path:
-        cmd.extend(["-i", voice_path])
+    audio_inputs = []
+    filter_complex = ""
+    maps = []
 
-    cmd.extend([
-        "-map", "0:v",
-        "-map", "1:a",
-        "-vf", "scale=1080:1920",
+    # ✅ Add background music
+    if bg_path:
+        base_cmd += ["-i", bg_path]
+        audio_inputs.append("1")
+
+    # ✅ Add voice-over
+    if voice_path:
+        base_cmd += ["-i", voice_path]
+        audio_inputs.append("2" if bg_path else "1")
+
+    # ✅ Audio mixing logic
+    if len(audio_inputs) == 0:
+        # ❌ No audio → create silent track
+        filter_complex = "anullsrc=channel_layout=stereo:sample_rate=44100[a0]"
+        maps = ["-map", "0:v", "-map", "[a0]"]
+
+    elif len(audio_inputs) == 1:
+        # ✅ Only one audio source → no mix needed
+        maps = ["-map", "0:v", "-map", f"{audio_inputs[0]}:a"]
+
+    elif len(audio_inputs) == 2:
+        # ✅ Mix background + voice-over
+        filter_complex = (
+            f"[1:a][2:a]amix=inputs=2:duration=longest:dropout_transition=2[aout]"
+        )
+        maps = ["-map", "0:v", "-map", "[aout]"]
+
+    # ✅ FULL FFmpeg Command
+    cmd = base_cmd
+
+    if filter_complex:
+        cmd += ["-filter_complex", filter_complex]
+
+    cmd += maps
+
+    # ✅ Video encoding
+    cmd += [
+        "-vf",
+        "scale=1080:1920:force_original_aspect_ratio=decrease,"
+        "pad=1080:1920:(ow-iw)/2:(oh-ih)/2",
         "-c:v", "libx264",
         "-pix_fmt", "yuv420p",
         "-preset", "veryfast",
         "-crf", "28",
-        final_path
-    ])
+        output_path
+    ]
 
     print("✅ Running FFmpeg command:")
     print(" ".join(cmd))
 
-    # ✅ RUN FFmpeg (non-blocking)
+    # ✅ Run FFmpeg
     process = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE
+        stderr=subprocess.PIPE,
+        text=True
     )
+    _, stderr = process.communicate()
 
-    # ✅ WAIT for completion
-    stdout, stderr = process.communicate()
-    print("✅ FFmpeg Completed")
-    print(stderr.decode())
+    print("🔴 FFmpeg Output:")
+    print(stderr)
 
-    # ✅ Return final video
-    return send_file(final_path, as_attachment=True, download_name="final_video.mp4")
+    if not os.path.exists(output_path):
+        return jsonify({"error": "FFmpeg failed"}), 500
+
+    return send_file(output_path, mimetype="video/mp4")
 
 
 @app.route("/")
 def home():
-    return "✅ Backend is running!"
+    return "Backend is running!"
 
 
 if __name__ == "__main__":
