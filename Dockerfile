@@ -1,16 +1,22 @@
-FROM python:3.10
+FROM python:3.10-slim
 
-# Install ffmpeg
-RUN apt-get update && apt-get install -y ffmpeg && apt-get clean
+# Install FFmpeg
+RUN apt-get update && \
+    apt-get install -y ffmpeg && \
+    apt-get clean
 
 WORKDIR /app
 
-COPY backend /app/backend
-COPY frontend /app/frontend
+# Copy backend
+COPY backend /app
 
-RUN pip install --no-cache-dir -r /app/backend/requirements.txt
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
 
-WORKDIR /app/backend
+# Create uploads folder
+RUN mkdir -p /app/uploads
 
-# Railway will inject PORT environment variable
-CMD gunicorn --bind 0.0.0.0:$PORT app:app
+# Expose Railway port
+ENV PORT=10000
+
+CMD ["gunicorn", "-b", "0.0.0.0:10000", "app:app"]
