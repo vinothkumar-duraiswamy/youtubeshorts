@@ -6,26 +6,23 @@ import subprocess
 import json
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
-
-# ✅ Allow large uploads (500 MB)
-app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
+CORS(app)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_DIR = os.path.join(BASE_DIR, "..", "frontend")
 USERS_FILE = os.path.join(BASE_DIR, "users.json")
 
-# =====================================================
-# ✅ ROOT for Railway healthcheck
-# =====================================================
+# -----------------------------
+# ✅ ROOT (Health Check)
+# -----------------------------
 @app.get("/")
 def home():
-    return "✅ Backend is running", 200
+    return "Backend running ✅", 200
 
 
-# =====================================================
+# -----------------------------
 # ✅ LOGIN
-# =====================================================
+# -----------------------------
 @app.post("/api/login")
 def login():
     username = request.form.get("username")
@@ -34,41 +31,25 @@ def login():
     with open(USERS_FILE, "r") as f:
         users = json.load(f)
 
-    for user in users:
-        if user["username"] == username and user["password"] == password:
+    for u in users:
+        if u["username"] == username and u["password"] == password:
             return jsonify({"success": True})
 
     return jsonify({"success": False}), 401
 
 
-# =====================================================
-# ✅ FRONTEND ROUTES
-# =====================================================
-@app.get("/login.html")
-def serve_login():
-    return send_from_directory(FRONTEND_DIR, "login.html")
-
-@app.get("/app.html")
-def serve_app():
-    return send_from_directory(FRONTEND_DIR, "app.html")
-
-@app.get("/<path:filename>")
-def serve_static(filename):
-    return send_from_directory(FRONTEND_DIR, filename)
-
-
-# =====================================================
-# ✅ VIDEO GENERATOR API
-# =====================================================
+# -----------------------------
+# ✅ VIDEO GENERATION
+# -----------------------------
 @app.post("/api/generate_video")
 def generate_video():
     try:
         poster = request.files.get("poster")
         bg_music = request.files.get("bg_music")
-        voice_over = request.files.get("voice_over")
+        voice = request.files.get("voice_over")
 
         if not poster:
-            return jsonify({"error": "Poster is required"}), 400
+            return jsonify({"error": "Poster required"}), 400
 
         tmp = tempfile.mkdtemp()
 
@@ -82,15 +63,17 @@ def generate_video():
             bg_path = os.path.join(tmp, "bg.mp3")
             bg_music.save(bg_path)
 
-        if voice_over:
+        if voice:
             voice_path = os.path.join(tmp, "voice.mp3")
-            voice_over.save(voice_path)
+            voice.save(voice_path)
 
+        # -----------------------------
+        # ✅ Get duration from voice (if any)
+        # -----------------------------
         duration = 25
         if voice_path:
             cmd = [
-                "ffprobe",
-                "-v", "error",
+                "ffprobe", "-v", "quiet",
                 "-show_entries", "format=duration",
                 "-of", "default=noprint_wrappers=1:nokey=1",
                 voice_path
@@ -98,55 +81,56 @@ def generate_video():
             out = subprocess.check_output(cmd).decode().strip()
             duration = float(out)
 
-        output_path = os.path.join(tmp, "final_video.mp4")
+        output_path = os.path.join(tmp, "output.mp4")
 
-        # ✅ FFMPEG LOGIC
-        if voice_path and bg_path:
-            ffmpeg_cmd = [
+        # -----------------------------
+        # ✅ FFmpeg command
+        # -----------------------------
+        if bg_path and voice_path:
+            cmd = [
                 "ffmpeg", "-y",
                 "-loop", "1", "-i", poster_path,
                 "-i", bg_path,
                 "-i", voice_path,
                 "-filter_complex",
-                "[1:a]volume=0.3[a_bg]; [a_bg][2:a]amix=inputs=2[a_mix]",
+                "[1:a]volume=0.3[a1];[a1][2:a]amix=inputs=2[aout]",
                 "-map", "0:v",
-                "-map", "[a_mix]",
+                "-map", "[aout]",
                 "-c:v", "libx264",
-                "-pix_fmt", "yuv420p",
                 "-t", str(duration),
+                "-pix_fmt", "yuv420p",
                 output_path
             ]
 
         elif voice_path:
-            ffmpeg_cmd = [
+            cmd = [
                 "ffmpeg", "-y",
                 "-loop", "1", "-i", poster_path,
                 "-i", voice_path,
                 "-map", "0:v",
                 "-map", "1:a",
                 "-c:v", "libx264",
-                "-pix_fmt", "yuv420p",
                 "-t", str(duration),
+                "-pix_fmt", "yuv420p",
                 output_path
             ]
 
         elif bg_path:
-            ffmpeg_cmd = [
+            cmd = [
                 "ffmpeg", "-y",
                 "-loop", "1", "-i", poster_path,
                 "-i", bg_path,
-                "-filter_complex",
-                "[1:a]volume=0.3[a_bg]",
+                "-filter_complex", "[1:a]volume=0.4[aout]",
                 "-map", "0:v",
-                "-map", "[a_bg]",
+                "-map", "[aout]",
                 "-c:v", "libx264",
-                "-pix_fmt", "yuv420p",
                 "-t", "25",
+                "-pix_fmt", "yuv420p",
                 output_path
             ]
 
         else:
-            ffmpeg_cmd = [
+            cmd = [
                 "ffmpeg", "-y",
                 "-loop", "1", "-i", poster_path,
                 "-t", "25",
@@ -155,7 +139,13 @@ def generate_video():
                 output_path
             ]
 
-        subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        print("✅ Running FFmpeg:")
+        print(" ".join(cmd))
+
+        subprocess.run(cmd, stderr=subprocess.STDOUT, stdout=subprocess.PIPE)
+
+        if not os.path.exists(output_path) or os.path.getsize(output_path) < 2000:
+            return jsonify({"error": "FFmpeg failed! File too small."}), 500
 
         return send_file(output_path, as_attachment=True)
 
@@ -163,9 +153,10 @@ def generate_video():
         return jsonify({"error": str(e)}), 500
 
 
-# =====================================================
-# ✅ IMPORTANT FOR RAILWAY (Dynamic PORT)
-# =====================================================
+
+# -----------------------------
+# ✅ RUN
+# -----------------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
