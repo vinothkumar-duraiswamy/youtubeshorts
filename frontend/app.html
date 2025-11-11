@@ -56,6 +56,8 @@
 
 <script src="poster-script.js"></script>
 
+<hr>
+
 <h2>Generate Video</h2>
 
 <label>Poster Image:</label>
@@ -64,7 +66,7 @@
 <label>Background Music:</label>
 <input type="file" id="bgMusic" accept="audio/*"><br><br>
 
-<label>Voice Over:</label>
+<label>Voice Over (Optional):</label>
 <input type="file" id="voiceOver" accept="audio/*"><br><br>
 
 <button onclick="uploadVideo()">Generate Video</button>
@@ -72,18 +74,42 @@
 <script>
 async function uploadVideo() {
     let form = new FormData();
-    form.append("poster", document.getElementById("posterFile").files[0]);
-    form.append("bg_music", document.getElementById("bgMusic").files[0]);
+    let poster = document.getElementById("posterFile").files[0];
 
-    let voiceFile = document.getElementById("voiceOver").files[0];
-    if (voiceFile) form.append("voice_over", voiceFile);
+    if (!poster) {
+        alert("Please select a poster image!");
+        return;
+    }
 
-    // ✅ UPDATE BACKEND URL (IMPORTANT)
-    let API_URL = "https://youtubeshorts-backend-7o48.onrender.com/api/generate_video";
+    form.append("poster", poster);
 
-    let res = await fetch(API_URL, { method: "POST", body: form });
+    let bg = document.getElementById("bgMusic").files[0];
+    let voice = document.getElementById("voiceOver").files[0];
 
-    let blob = await res.blob();
-    let link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "fin
+    if (bg) form.append("bg_music", bg);
+    if (voice) form.append("voice_over", voice);
+
+    const API_URL = "https://youtubeshorts-backend-production.up.railway.app/api/generate_video";
+
+    try {
+        let res = await fetch(API_URL, { method: "POST", body: form });
+
+        if (!res.ok) {
+            alert("Server error: " + res.status);
+            return;
+        }
+
+        let blob = await res.blob();
+        let link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "final_video.mp4";
+        link.click();
+
+    } catch (err) {
+        alert("Error: " + err.message);
+    }
+}
+</script>
+
+</body>
+</html>
