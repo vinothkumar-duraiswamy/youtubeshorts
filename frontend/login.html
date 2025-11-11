@@ -14,21 +14,13 @@
 
 <script>
 async function doLogin() {
-    const username = document.getElementById("username").value;
-    const password = document.getElementById("password").value;
+    const API_URL = "https://youtubeshorts-backend-production.up.railway.app/api/login";
 
     let form = new FormData();
-    form.append("username", username);
-    form.append("password", password);
+    form.append("username", document.getElementById("username").value);
+    form.append("password", document.getElementById("password").value);
 
-    // ✅ UPDATE BACKEND URL
-    let API_URL = "https://youtubeshorts-backend-7o48.onrender.com/api/login";
-
-    let res = await fetch(API_URL, {
-        method: "POST",
-        body: form
-    });
-
+    let res = await fetch(API_URL, { method: "POST", body: form });
     let data = await res.json();
 
     if (data.success) {
