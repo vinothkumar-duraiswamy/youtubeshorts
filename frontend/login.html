@@ -13,23 +13,29 @@
 <button onclick="doLogin()">Login</button>
 
 <script>
-function doLogin() {
+async function doLogin() {
     const username = document.getElementById("username").value;
     const password = document.getElementById("password").value;
 
-    fetch("/api/Login", {
+    let form = new FormData();
+    form.append("username", username);
+    form.append("password", password);
+
+    // ✅ UPDATE BACKEND URL
+    let API_URL = "https://youtubeshorts-backend-7o48.onrender.com/api/login";
+
+    let res = await fetch(API_URL, {
         method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ username, password })
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) {
-            window.location.href = "/app.html";
-        } else {
-            alert(data.message);
-        }
-    })
+        body: form
+    });
+
+    let data = await res.json();
+
+    if (data.success) {
+        window.location.href = "/app.html";
+    } else {
+        alert("Invalid credentials");
+    }
 }
 </script>
 
