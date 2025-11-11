@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Poster Generator</title>
+
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;700&
+    family=Noto+Sans+Tamil:wght@400;700&
+    family=Noto+Sans+Telugu:wght@400;700&
+    family=Noto+Sans+Devanagari:wght@400;700&display=swap" rel="stylesheet">
+
+</head>
+<body>
+
+<h2>Poster Generator</h2>
+
+<label>Background Image:</label>
+<input type="file" id="bgUpload"><br><br>
+
+<label>Bottom Image:</label>
+<input type="file" id="bottomUpload"><br><br>
+
+<label>Header Text (supports multi-line):</label><br>
+<textarea id="headerText" rows="2" cols="50"></textarea><br><br>
+
+<label>Content Text:</label><br>
+<textarea id="contentText" rows="6" cols="50"></textarea><br><br>
+
+<label>Font:</label>
+<select id="fontSelect">
+    <option value="Noto Sans">English</option>
+    <option value="Noto Sans Tamil">Tamil</option>
+    <option value="Noto Sans Telugu">Telugu</option>
+    <option value="Noto Sans Devanagari">Hindi</option>
+</select><br><br>
+
+<label>Header Color:</label>
+<input type="color" id="headerColor" value="#FFFFFF"><br><br>
+
+<label>Content Color:</label>
+<input type="color" id="contentColor" value="#FFFFFF"><br><br>
+
+<label>Header Font Size:</label>
+<input type="number" id="headerSize" value="120"><br><br>
+
+<label>Underline Header:</label>
+<input type="checkbox" id="underlineHeader"><br><br>
+
+<label>Content Font Size:</label>
+<input type="number" id="contentSize" value="70"><br><br>
+
+<label>Line Spacing (Content):</label>
+<input type="number" id="lineSpacing" value="90"><br><br>
+
+<button onclick="generatePoster()">Generate Poster</button>
+
+<!-- Hidden Canvas -->
+<canvas id="posterCanvas" width="1080" height="1920" style="display:none;"></canvas>
+
+<script src="poster-script.js"></script>
+
+<h2>Generate Video</h2>
+
+<label>Poster Image:</label>
+<input type="file" id="posterFile" name="poster" accept="image/*">
+
+<label>Background Music:</label>
+<input type="file" id="bgMusic" name="bg_music" accept="audio/*">
+
+<label>Voice Over (Optional):</label>
+<input type="file" id="voiceOver" name="voice_over" accept="audio/*">
+
+<button onclick="uploadVideo()">Generate Video</button>
+
+<script>
+async function uploadVideo() {
+    let form = new FormData();
+    form.append("poster", document.getElementById("posterFile").files[0]);
+    form.append("bg_music", document.getElementById("bgMusic").files[0]);
+
+    let voiceFile = document.getElementById("voiceOver").files[0];
+    if (voiceFile) {
+        form.append("voice_over", voiceFile);
+    }
+
+    let res = await fetch("http://127.0.0.1:5000/api/generate_video", {
+        method: "POST",
+        body: form
+    });
+
+    let blob = await res.blob();
+    let link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "final_video.mp4";
+    link.click();
+}
+</script>
+
+
+</body>
+</html>

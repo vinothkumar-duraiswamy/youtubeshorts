@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: poster-generator
+    env: python
+    region: singapore
+    buildCommand: "pip install -r backend/requirements.txt"
+    startCommand: "gunicorn backend.app:app"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12
+    plan: free
