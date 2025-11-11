@@ -1,16 +1,14 @@
-FROM ubuntu:22.04
+FROM jrottenberg/ffmpeg:6.0-ubuntu
 
-RUN apt-get update && apt-get install -y \
-    python3 python3-pip python3-dev ffmpeg \
-    && apt-get clean
+# Install Python
+RUN apt-get update && apt-get install -y python3 python3-pip python3-dev
 
 WORKDIR /app
 
-COPY backend /app/backend
-COPY frontend /app/frontend
+COPY . /app
 
-RUN pip3 install --no-cache-dir -r /app/backend/requirements.txt
+RUN pip3 install --no-cache-dir -r backend/requirements.txt
 
 EXPOSE 5000
 
-CMD ["sh", "-c", "gunicorn -b 0.0.0.0:${PORT} backend.app:app"]
+CMD ["gunicorn", "-b", "0.0.0.0:5000", "--timeout", "600", "--workers", "1", "backend.app:app"]
