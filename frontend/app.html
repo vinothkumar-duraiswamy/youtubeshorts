@@ -3,12 +3,10 @@
 <head>
     <title>Poster Generator</title>
 
-    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;700&
     family=Noto+Sans+Tamil:wght@400;700&
     family=Noto+Sans+Telugu:wght@400;700&
     family=Noto+Sans+Devanagari:wght@400;700&display=swap" rel="stylesheet">
-
 </head>
 <body>
 
@@ -20,7 +18,7 @@
 <label>Bottom Image:</label>
 <input type="file" id="bottomUpload"><br><br>
 
-<label>Header Text (supports multi-line):</label><br>
+<label>Header Text:</label><br>
 <textarea id="headerText" rows="2" cols="50"></textarea><br><br>
 
 <label>Content Text:</label><br>
@@ -49,12 +47,11 @@
 <label>Content Font Size:</label>
 <input type="number" id="contentSize" value="70"><br><br>
 
-<label>Line Spacing (Content):</label>
+<label>Line Spacing:</label>
 <input type="number" id="lineSpacing" value="90"><br><br>
 
 <button onclick="generatePoster()">Generate Poster</button>
 
-<!-- Hidden Canvas -->
 <canvas id="posterCanvas" width="1080" height="1920" style="display:none;"></canvas>
 
 <script src="poster-script.js"></script>
@@ -62,13 +59,13 @@
 <h2>Generate Video</h2>
 
 <label>Poster Image:</label>
-<input type="file" id="posterFile" name="poster" accept="image/*">
+<input type="file" id="posterFile" accept="image/*"><br><br>
 
 <label>Background Music:</label>
-<input type="file" id="bgMusic" name="bg_music" accept="audio/*">
+<input type="file" id="bgMusic" accept="audio/*"><br><br>
 
-<label>Voice Over (Optional):</label>
-<input type="file" id="voiceOver" name="voice_over" accept="audio/*">
+<label>Voice Over:</label>
+<input type="file" id="voiceOver" accept="audio/*"><br><br>
 
 <button onclick="uploadVideo()">Generate Video</button>
 
@@ -79,23 +76,14 @@ async function uploadVideo() {
     form.append("bg_music", document.getElementById("bgMusic").files[0]);
 
     let voiceFile = document.getElementById("voiceOver").files[0];
-    if (voiceFile) {
-        form.append("voice_over", voiceFile);
-    }
+    if (voiceFile) form.append("voice_over", voiceFile);
 
-    let res = await fetch("http://127.0.0.1:5000/api/generate_video", {
-        method: "POST",
-        body: form
-    });
+    // ✅ UPDATE BACKEND URL (IMPORTANT)
+    let API_URL = "https://youtubeshorts-backend-7o48.onrender.com/api/generate_video";
+
+    let res = await fetch(API_URL, { method: "POST", body: form });
 
     let blob = await res.blob();
     let link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = "final_video.mp4";
-    link.click();
-}
-</script>
-
-
-</body>
-</html>
+    link.download = "fin
