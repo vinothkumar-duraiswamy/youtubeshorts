@@ -2,8 +2,10 @@ services:
   - type: web
     name: youtubeshorts-backend
     env: docker
-    region: singapore
     plan: free
-    dockerfilePath: ./backend/Dockerfile
-    numInstances: 1
+    region: singapore
+    dockerfilePath: ./Dockerfile
     healthCheckPath: /
+    envVars:
+      - key: PORT
+        value: 10000
