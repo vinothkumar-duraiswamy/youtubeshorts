@@ -8,12 +8,12 @@ import json
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))    # backend/
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_DIR = os.path.join(BASE_DIR, "..", "frontend")
 USERS_FILE = os.path.join(BASE_DIR, "users.json")
 
 # =====================================================
-# ✅ ROOT - HEALTHCHECK ENDPOINT (IMPORTANT FOR RAILWAY)
+# ✅ ROOT for Railway healthcheck
 # =====================================================
 @app.get("/")
 def home():
@@ -21,7 +21,7 @@ def home():
 
 
 # =====================================================
-# ✅ LOGIN API
+# ✅ LOGIN
 # =====================================================
 @app.post("/api/login")
 def login():
@@ -39,7 +39,7 @@ def login():
 
 
 # =====================================================
-# ✅ SERVE FRONTEND FILES
+# ✅ FRONTEND ROUTES
 # =====================================================
 @app.get("/login.html")
 def serve_login():
@@ -84,7 +84,6 @@ def generate_video():
             voice_path = os.path.join(tmp, "voice.mp3")
             voice_over.save(voice_path)
 
-        # ✅ Determine Duration
         duration = 25
         if voice_path:
             cmd = [
@@ -99,21 +98,17 @@ def generate_video():
 
         output_path = os.path.join(tmp, "final_video.mp4")
 
-        # ✅ CASE 1 — Voice + Background
         if voice_path and bg_path:
             ffmpeg_cmd = [
                 "ffmpeg", "-y",
                 "-loop", "1", "-i", poster_path,
                 "-i", bg_path,
                 "-i", voice_path,
-
                 "-filter_complex",
                 "[1:a]volume=0.3[a_bg];"
-                "[a_bg][2:a]amix=inputs=2:dropout_transition=3[a_mix]",
-
+                "[a_bg][2:a]amix=inputs=2[a_mix]",
                 "-map", "0:v",
                 "-map", "[a_mix]",
-
                 "-c:v", "libx264",
                 "-pix_fmt", "yuv420p",
                 "-t", str(duration),
@@ -121,16 +116,13 @@ def generate_video():
                 output_path
             ]
 
-        # ✅ CASE 2 — Only Voice
         elif voice_path:
             ffmpeg_cmd = [
                 "ffmpeg", "-y",
                 "-loop", "1", "-i", poster_path,
                 "-i", voice_path,
-
                 "-map", "0:v",
                 "-map", "1:a",
-
                 "-c:v", "libx264",
                 "-pix_fmt", "yuv420p",
                 "-t", str(duration),
@@ -138,19 +130,15 @@ def generate_video():
                 output_path
             ]
 
-        # ✅ CASE 3 — Only Background
         elif bg_path:
             ffmpeg_cmd = [
                 "ffmpeg", "-y",
                 "-loop", "1", "-i", poster_path,
                 "-i", bg_path,
-
                 "-filter_complex",
                 "[1:a]volume=0.3[a_bg]",
-
                 "-map", "0:v",
                 "-map", "[a_bg]",
-
                 "-c:v", "libx264",
                 "-pix_fmt", "yuv420p",
                 "-t", "25",
@@ -158,7 +146,6 @@ def generate_video():
                 output_path
             ]
 
-        # ✅ CASE 4 — No Audio
         else:
             ffmpeg_cmd = [
                 "ffmpeg", "-y",
@@ -181,7 +168,8 @@ def generate_video():
 
 
 # =====================================================
-# ✅ RUN SERVER (RAILWAY)
+# ✅ IMPORTANT FOR RAILWAY (Dynamic PORT)
 # =====================================================
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
