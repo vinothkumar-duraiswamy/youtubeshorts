@@ -8,6 +8,9 @@ import json
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
+# ✅ Allow large uploads (500 MB)
+app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_DIR = os.path.join(BASE_DIR, "..", "frontend")
 USERS_FILE = os.path.join(BASE_DIR, "users.json")
@@ -59,7 +62,6 @@ def serve_static(filename):
 # =====================================================
 @app.post("/api/generate_video")
 def generate_video():
-
     try:
         poster = request.files.get("poster")
         bg_music = request.files.get("bg_music")
@@ -98,6 +100,7 @@ def generate_video():
 
         output_path = os.path.join(tmp, "final_video.mp4")
 
+        # ✅ FFMPEG LOGIC
         if voice_path and bg_path:
             ffmpeg_cmd = [
                 "ffmpeg", "-y",
@@ -105,14 +108,12 @@ def generate_video():
                 "-i", bg_path,
                 "-i", voice_path,
                 "-filter_complex",
-                "[1:a]volume=0.3[a_bg];"
-                "[a_bg][2:a]amix=inputs=2[a_mix]",
+                "[1:a]volume=0.3[a_bg]; [a_bg][2:a]amix=inputs=2[a_mix]",
                 "-map", "0:v",
                 "-map", "[a_mix]",
                 "-c:v", "libx264",
                 "-pix_fmt", "yuv420p",
                 "-t", str(duration),
-                "-shortest",
                 output_path
             ]
 
@@ -126,7 +127,6 @@ def generate_video():
                 "-c:v", "libx264",
                 "-pix_fmt", "yuv420p",
                 "-t", str(duration),
-                "-shortest",
                 output_path
             ]
 
@@ -142,7 +142,6 @@ def generate_video():
                 "-c:v", "libx264",
                 "-pix_fmt", "yuv420p",
                 "-t", "25",
-                "-shortest",
                 output_path
             ]
 
@@ -155,9 +154,6 @@ def generate_video():
                 "-pix_fmt", "yuv420p",
                 output_path
             ]
-
-        print("✅ FINAL FFMPEG COMMAND:")
-        print(" ".join(ffmpeg_cmd))
 
         subprocess.run(ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
@@ -173,5 +169,3 @@ def generate_video():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
-
