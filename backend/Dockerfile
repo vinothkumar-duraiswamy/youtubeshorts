@@ -1,20 +1,20 @@
-# ✅ Base Image (Python + FFmpeg included)
+# ✅ Base image with FFmpeg
 FROM jrottenberg/ffmpeg:6.0-ubuntu
 
 # ✅ Install Python
 RUN apt-get update && apt-get install -y python3 python3-pip python3-dev
 
-# ✅ Set work directory
+# ✅ Set working directory
 WORKDIR /app
 
-# ✅ Copy project files
+# ✅ Copy project
 COPY . /app
 
 # ✅ Install Python dependencies
 RUN pip3 install --no-cache-dir -r backend/requirements.txt
 
-# ✅ Expose Render port
-ENV PORT=10000
+# ✅ Expose Railway's PORT (important)
+EXPOSE 5000
 
-# ✅ Run Gunicorn server
-CMD ["gunicorn", "--bind", "0.0.0.0:10000", "backend.app:app"]
+# ✅ Start Flask using Gunicorn
+CMD ["gunicorn", "-b", "0.0.0.0:5000", "backend.app:app"]
