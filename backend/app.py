@@ -50,7 +50,7 @@ def generate_video():
 
     output_path = os.path.join(UPLOAD_FOLDER, f"final_{uuid.uuid4()}.mp4")
 
-    # Get volume setting from frontend
+    # Get background music volume
     music_volume = request.form.get("music_volume", "30")
     try:
         user_volume = float(music_volume)
@@ -58,31 +58,42 @@ def generate_video():
         user_volume = 30.0
     bg_volume_level = round(user_volume / 100, 2)
 
-    cmd = ["ffmpeg", "-y", "-loop", "1", "-i", poster_path]
+    # ✅ Set base FFmpeg command (minimal threads + smaller buffer)
+    cmd = [
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+        "-threads", "1",
+        "-loop", "1", "-i", poster_path
+    ]
 
-    # Add optional audio
+    # Add audio inputs
+    input_count = 0
     if bg_path:
         cmd += ["-i", bg_path]
+        input_count += 1
     if voice_path:
         cmd += ["-i", voice_path]
+        input_count += 1
 
     filter_complex = ""
     maps = []
 
+    # ✅ Build optimized filter for mixing
     if bg_path and voice_path:
-        # ✅ Mix background + voice
         filter_complex = (
             f"[1:a]volume={bg_volume_level}[bg];"
             f"[2:a]volume=1.0[voice];"
-            f"[bg][voice]amix=inputs=2:duration=longest[aout]"
+            f"[bg][voice]amix=inputs=2:duration=longest:dropout_transition=2[aout]"
         )
         maps = ["-map", "0:v", "-map", "[aout]"]
+
     elif bg_path:
         maps = ["-map", "0:v", "-map", "1:a"]
+
     elif voice_path:
         maps = ["-map", "0:v", "-map", "1:a"]
+
     else:
-        # ✅ Generate silent track if no audio
+        # ✅ If no audio, create silent track (low CPU)
         cmd += ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"]
         maps = ["-map", "0:v", "-map", "1:a"]
 
@@ -91,35 +102,38 @@ def generate_video():
 
     cmd += maps
 
-    # ✅ Optimized FFmpeg command for Railway (low memory)
+    # ✅ Lightweight encoding setup
     cmd += [
         "-vf", "scale=720:1280:force_original_aspect_ratio=decrease,"
                "pad=720:1280:(ow-iw)/2:(oh-ih)/2,format=yuv420p",
         "-c:v", "libx264",
-        "-preset", "ultrafast",
-        "-crf", "30",
+        "-preset", "superfast",      # 💡 Less CPU usage
+        "-crf", "32",                # 💡 Slightly more compression
         "-c:a", "aac",
+        "-b:a", "96k",               # 💡 Lower audio bitrate to save RAM
         "-pix_fmt", "yuv420p",
-        "-threads", "1",      # ✅ prevent memory spikes
-        "-to", "60",          # ✅ limit to 60s (safe)
-        "-shortest",          # ✅ stops when audio ends earlier
+        "-to", "60",                 # ⏱ Limit max duration to 60s
+        "-shortest",
         output_path
     ]
 
     print("🎬 Running FFmpeg command:\n", " ".join(cmd))
 
-    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    stdout, stderr = process.communicate()
+    try:
+        process = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        print("🔴 FFmpeg STDERR:\n", process.stderr)
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "Video generation timed out"}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-    print("🔵 FFmpeg STDOUT:\n", stdout)
-    print("🔴 FFmpeg STDERR:\n", stderr)
-
-    if os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
+    if os.path.exists(output_path) and os.path.getsize(output_path) > 50000:
         print("✅ FFmpeg Completed Successfully!")
-        return send_file(output_path, as_attachment=True, download_name="final_video.mp4", mimetype="video/mp4")
-    else:
-        print("❌ FFmpeg failed or file empty.")
-        return jsonify({"error": "Video generation failed"}), 500
+        return send_file(output_path, as_attachment=True,
+                         download_name="final_video.mp4", mimetype="video/mp4")
+
+    print("❌ FFmpeg failed or file empty.")
+    return jsonify({"error": "Video generation failed"}), 500
 
 
 @app.route("/")
