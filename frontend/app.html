@@ -1,175 +1,126 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Poster & Video Generator</title>
-
-  <!-- Google Fonts (Tamil / Telugu / Hindi / English) -->
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;700&
+    <title>Poster Generator & Video Creator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;700&
     family=Noto+Sans+Tamil:wght@400;700&
     family=Noto+Sans+Telugu:wght@400;700&
     family=Noto+Sans+Devanagari:wght@400;700&display=swap" rel="stylesheet">
-
-  <script>
-    // ✅ Block direct access if not logged in
-    if (localStorage.getItem("isLoggedIn") !== "true") {
-      window.location.href = "/login.html";
-    }
-
-    // ✅ Simple logout function
-    function logout() {
-      localStorage.removeItem("isLoggedIn");
-      window.location.href = "/login.html";
-    }
-  </script>
-
-  <style>
-    body {
-      font-family: 'Noto Sans', sans-serif;
-      padding: 20px;
-      background: #121212;
-      color: #fff;
-    }
-    h2 {
-      margin-top: 30px;
-    }
-    label {
-      display: inline-block;
-      margin-top: 10px;
-    }
-    textarea, input, select {
-      width: 100%;
-      max-width: 400px;
-    }
-    button {
-      background: #2196f3;
-      color: white;
-      padding: 10px 20px;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-      margin-top: 10px;
-    }
-    button:hover {
-      background: #1976d2;
-    }
-    #logoutBtn {
-      float: right;
-      background: crimson;
-    }
-    hr {
-      margin: 40px 0;
-    }
-  </style>
 </head>
-
 <body>
 
-  <button id="logoutBtn" onclick="logout()">Logout</button>
-  <h2>Poster Generator</h2>
+<h2>Poster Generator</h2>
 
-  <!-- Background and Content Section -->
-  <label>Background Image:</label>
-  <input type="file" id="bgUpload"><br><br>
+<label>Background Image:</label>
+<input type="file" id="bgUpload"><br><br>
 
-  <label>Bottom Image:</label>
-  <input type="file" id="bottomUpload"><br><br>
+<label>Bottom Image:</label>
+<input type="file" id="bottomUpload"><br><br>
 
-  <label>Header Text:</label>
-  <textarea id="headerText" rows="2" cols="50"></textarea><br><br>
+<label>Header Text:</label><br>
+<textarea id="headerText" rows="2" cols="50"></textarea><br><br>
 
-  <label>Content Text:</label>
-  <textarea id="contentText" rows="6" cols="50"></textarea><br><br>
+<label>Content Text:</label><br>
+<textarea id="contentText" rows="6" cols="50"></textarea><br><br>
 
-  <label>Font:</label>
-  <select id="fontSelect">
+<label>Font:</label>
+<select id="fontSelect">
     <option value="Noto Sans">English</option>
     <option value="Noto Sans Tamil">Tamil</option>
     <option value="Noto Sans Telugu">Telugu</option>
     <option value="Noto Sans Devanagari">Hindi</option>
-  </select><br><br>
+</select><br><br>
 
-  <label>Header Color:</label>
-  <input type="color" id="headerColor" value="#FFFFFF"><br><br>
+<label>Header Color:</label>
+<input type="color" id="headerColor" value="#FFFFFF"><br><br>
 
-  <label>Content Color:</label>
-  <input type="color" id="contentColor" value="#FFFFFF"><br><br>
+<label>Content Color:</label>
+<input type="color" id="contentColor" value="#FFFFFF"><br><br>
 
-  <label>Header Font Size:</label>
-  <input type="number" id="headerSize" value="120"><br><br>
+<label>Header Font Size:</label>
+<input type="number" id="headerSize" value="120"><br><br>
 
-  <label>Underline Header:</label>
-  <input type="checkbox" id="underlineHeader"><br><br>
+<label>Underline Header:</label>
+<input type="checkbox" id="underlineHeader"><br><br>
 
-  <label>Content Font Size:</label>
-  <input type="number" id="contentSize" value="70"><br><br>
+<label>Content Font Size:</label>
+<input type="number" id="contentSize" value="70"><br><br>
 
-  <label>Line Spacing:</label>
-  <input type="number" id="lineSpacing" value="90"><br><br>
+<label>Line Spacing:</label>
+<input type="number" id="lineSpacing" value="90"><br><br>
 
-  <button onclick="generatePoster()">Generate Poster</button>
+<button onclick="generatePoster()">Generate Poster</button>
 
-  <canvas id="posterCanvas" width="1080" height="1920" style="display:none;"></canvas>
+<canvas id="posterCanvas" width="1080" height="1920" style="display:none;"></canvas>
 
-  <script src="poster-script.js"></script>
+<script src="poster-script.js"></script>
 
-  <hr>
+<hr>
 
-  <h2>Generate Video</h2>
+<h2>Generate Video</h2>
 
-  <label>Poster Image:</label>
-  <input type="file" id="posterFile" accept="image/*"><br><br>
+<label>Poster Image:</label>
+<input type="file" id="posterFile" accept="image/*"><br><br>
 
-  <label>Background Music:</label>
-  <input type="file" id="bgMusic" accept="audio/*"><br><br>
+<label>Background Music:</label>
+<input type="file" id="bgMusic" accept="audio/*"><br><br>
 
-  <label>Voice Over (Optional):</label>
-  <input type="file" id="voiceOver" accept="audio/*"><br><br>
+<!-- 🎚️ New Background Music Volume Slider -->
+<label>Background Music Volume:</label>
+<input type="range" id="musicVolume" min="10" max="100" value="30" oninput="updateVolumeLabel(this.value)">
+<span id="volumeValue">30%</span><br><br>
 
-  <button onclick="uploadVideo()">Generate Video</button>
+<label>Voice Over (Optional):</label>
+<input type="file" id="voiceOver" accept="audio/*"><br><br>
 
-  <script>
-    async function uploadVideo() {
-      let form = new FormData();
-      let poster = document.getElementById("posterFile").files[0];
+<button onclick="uploadVideo()">Generate Video</button>
 
-      if (!poster) {
-        alert("Please select a poster image!");
-        return;
-      }
+<script>
+function updateVolumeLabel(val) {
+  document.getElementById("volumeValue").innerText = val + "%";
+}
 
-      form.append("poster", poster);
+async function uploadVideo() {
+  let form = new FormData();
+  let poster = document.getElementById("posterFile").files[0];
 
-      let bg = document.getElementById("bgMusic").files[0];
-      let voice = document.getElementById("voiceOver").files[0];
+  if (!poster) {
+    alert("Please select a poster image!");
+    return;
+  }
 
-      if (bg) form.append("bg_music", bg);
-      if (voice) form.append("voice_over", voice);
+  form.append("poster", poster);
 
-      const API_URL = "https://youtubeshorts-backend-production.up.railway.app/api/generate_video";
+  let bg = document.getElementById("bgMusic").files[0];
+  let voice = document.getElementById("voiceOver").files[0];
+  let volume = document.getElementById("musicVolume").value;
 
-      try {
-        let res = await fetch(API_URL, { method: "POST", body: form });
+  if (bg) form.append("bg_music", bg);
+  if (voice) form.append("voice_over", voice);
+  form.append("music_volume", volume); // 🎚️ Send volume to backend
 
-        if (!res.ok) {
-          alert("Server error: " + res.status);
-          return;
-        }
+  const API_URL = "https://youtubeshorts-backend-production.up.railway.app/api/generate_video";
 
-        let blob = await res.blob();
-        let link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = "final_video.mp4";
-        link.click();
+  try {
+    let res = await fetch(API_URL, { method: "POST", body: form });
 
-        alert("✅ Video generated successfully!");
-
-      } catch (err) {
-        alert("Error: " + err.message);
-      }
+    if (!res.ok) {
+      alert("Server error: " + res.status);
+      return;
     }
-  </script>
+
+    let blob = await res.blob();
+    let link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "final_video.mp4";
+    link.click();
+
+    alert("✅ Video generated successfully!");
+  } catch (err) {
+    alert("Error: " + err.message);
+  }
+}
+</script>
 
 </body>
 </html>
