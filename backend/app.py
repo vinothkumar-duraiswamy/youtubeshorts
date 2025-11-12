@@ -5,18 +5,19 @@ from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 
 # -----------------------------------------------------------
-# Flask App Configuration
+# Flask App Setup
 # -----------------------------------------------------------
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "*"}})  # Allow all origins (Netlify-safe)
+CORS(app)  # Enable CORS for all routes (Netlify support)
 
-# Use /tmp/uploads for Railway (always writable)
+# Use Railway’s writable temp folder
 UPLOAD_FOLDER = "/tmp/uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Simple static credentials
+# Login credentials
 USERNAME = "vinothkumar"
 PASSWORD = "admin123"
+
 
 # -----------------------------------------------------------
 # LOGIN ENDPOINT
@@ -38,7 +39,7 @@ def login():
 def generate_video():
     print("✅ Received /api/generate_video request")
 
-    # Get uploaded files
+    # Collect uploaded files
     poster = request.files.get("poster")
     bg_music = request.files.get("bg_music")
     voice_over = request.files.get("voice_over")
@@ -47,7 +48,7 @@ def generate_video():
         return jsonify({"error": "Poster image required"}), 400
 
     # -------------------------------------------------------
-    # Save uploaded files
+    # Save input files
     # -------------------------------------------------------
     poster_path = os.path.join(UPLOAD_FOLDER, f"poster_{uuid.uuid4()}.png")
     poster.save(poster_path)
@@ -69,48 +70,40 @@ def generate_video():
     # -------------------------------------------------------
     cmd = [
         "ffmpeg", "-y",
-        "-loop", "1", "-i", poster_path,
-        "-t", "15",  # 15-second duration
+        "-loop", "1", "-i", poster_path
     ]
 
-    # Add background and voice-over inputs if available
+    # Add optional inputs
     if bg_path:
         cmd += ["-i", bg_path]
     if voice_path:
         cmd += ["-i", voice_path]
 
-    # Audio mix filter
-    filters = []
+    # Choose filter/mapping logic
     if bg_path and voice_path:
-        filters = [
+        audio_filter = [
             "-filter_complex", "[1:a][2:a]amix=inputs=2[aout]",
             "-map", "0:v", "-map", "[aout]"
         ]
     elif bg_path:
-        filters = ["-map", "0:v", "-map", "1:a"]
+        audio_filter = ["-map", "0:v", "-map", "1:a"]
     elif voice_path:
-        filters = ["-map", "0:v", "-map", "1:a"]
+        audio_filter = ["-map", "0:v", "-map", "1:a"]
     else:
-        # Generate silent track if no audio
-        filters = [
-            "-f", "lavfi",
-            "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
-            "-shortest"
-        ]
+        # Create silent audio when none provided
+        audio_filter = ["-f", "lavfi", "-i", "anullsrc", "-shortest"]
 
-    cmd += filters
+    cmd += audio_filter
 
-    # Final encoding parameters
+    # -------------------------------------------------------
+    # Add lightweight FFmpeg video settings
+    # -------------------------------------------------------
     cmd += [
-        "-vf", (
-            "scale=1080:1920:force_original_aspect_ratio=decrease,"
-            "pad=1080:1920:(ow-iw)/2:(oh-ih)/2,format=yuv420p"
-        ),
-        "-c:v", "libx264",
-        "-preset", "ultrafast",
-        "-crf", "28",
-        "-c:a", "aac",
-        "-shortest",
+        "-t", "15",  # video duration
+        "-vf", "scale=720:1280:force_original_aspect_ratio=decrease,"
+               "pad=720:1280:(ow-iw)/2:(oh-ih)/2,format=yuv420p",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "30",
+        "-c:a", "aac", "-shortest",
         output_path
     ]
 
@@ -120,18 +113,16 @@ def generate_video():
     # -------------------------------------------------------
     # Execute FFmpeg
     # -------------------------------------------------------
-    process = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-    )
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     stdout, stderr = process.communicate()
 
     print("🔵 FFmpeg STDOUT:\n", stdout)
     print("🔴 FFmpeg STDERR:\n", stderr)
 
     # -------------------------------------------------------
-    # Return result
+    # Return video file if created
     # -------------------------------------------------------
-    if os.path.exists(output_path):
+    if os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
         print("✅ FFmpeg Completed Successfully!")
         return send_file(
             output_path,
@@ -139,13 +130,13 @@ def generate_video():
             download_name="final_video.mp4",
             mimetype="video/mp4"
         )
-
-    print("❌ FFmpeg failed to produce output file.")
-    return jsonify({"error": "FFmpeg failed"}), 500
+    else:
+        print("❌ FFmpeg failed or empty output.")
+        return jsonify({"error": "Video generation failed. Check logs."}), 500
 
 
 # -----------------------------------------------------------
-# HEALTH CHECK ROUTE
+# HEALTH CHECK
 # -----------------------------------------------------------
 @app.route("/")
 def home():
@@ -153,7 +144,7 @@ def home():
 
 
 # -----------------------------------------------------------
-# MAIN ENTRY POINT
+# RUN APP LOCALLY (for testing)
 # -----------------------------------------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
