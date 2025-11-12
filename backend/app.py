@@ -1,17 +1,26 @@
 import os
 import uuid
-from flask import Flask, request, jsonify, send_file
 import subprocess
+from flask import Flask, request, jsonify, send_file
+from flask_cors import CORS
 
+# -----------------------------------------------------------
+# Flask App Configuration
+# -----------------------------------------------------------
 app = Flask(__name__)
+CORS(app, resources={r"/api/*": {"origins": "*"}})  # Allow all origins (Netlify-safe)
 
-UPLOAD_FOLDER = "/app/uploads"
+# Use /tmp/uploads for Railway (always writable)
+UPLOAD_FOLDER = "/tmp/uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# ✅ Temporary login
+# Simple static credentials
 USERNAME = "vinothkumar"
 PASSWORD = "admin123"
 
+# -----------------------------------------------------------
+# LOGIN ENDPOINT
+# -----------------------------------------------------------
 @app.route("/api/login", methods=["POST"])
 def login():
     username = request.form.get("username")
@@ -22,11 +31,14 @@ def login():
     return jsonify({"success": False}), 401
 
 
+# -----------------------------------------------------------
+# VIDEO GENERATION ENDPOINT
+# -----------------------------------------------------------
 @app.route("/api/generate_video", methods=["POST"])
 def generate_video():
-
     print("✅ Received /api/generate_video request")
 
+    # Get uploaded files
     poster = request.files.get("poster")
     bg_music = request.files.get("bg_music")
     voice_over = request.files.get("voice_over")
@@ -34,6 +46,9 @@ def generate_video():
     if not poster:
         return jsonify({"error": "Poster image required"}), 400
 
+    # -------------------------------------------------------
+    # Save uploaded files
+    # -------------------------------------------------------
     poster_path = os.path.join(UPLOAD_FOLDER, f"poster_{uuid.uuid4()}.png")
     poster.save(poster_path)
 
@@ -49,90 +64,96 @@ def generate_video():
 
     output_path = os.path.join(UPLOAD_FOLDER, f"final_{uuid.uuid4()}.mp4")
 
-    # ✅ Build FFmpeg filters
-    base_cmd = [
+    # -------------------------------------------------------
+    # Build FFmpeg Command
+    # -------------------------------------------------------
+    cmd = [
         "ffmpeg", "-y",
-        "-loop", "1",
-        "-i", poster_path,
-        "-t", "15",
+        "-loop", "1", "-i", poster_path,
+        "-t", "15",  # 15-second duration
     ]
 
-    audio_inputs = []
-    filter_complex = ""
-    maps = []
-
-    # ✅ Add background music
+    # Add background and voice-over inputs if available
     if bg_path:
-        base_cmd += ["-i", bg_path]
-        audio_inputs.append("1")
-
-    # ✅ Add voice-over
+        cmd += ["-i", bg_path]
     if voice_path:
-        base_cmd += ["-i", voice_path]
-        audio_inputs.append("2" if bg_path else "1")
+        cmd += ["-i", voice_path]
 
-    # ✅ Audio mixing logic
-    if len(audio_inputs) == 0:
-        # ❌ No audio → create silent track
-        filter_complex = "anullsrc=channel_layout=stereo:sample_rate=44100[a0]"
-        maps = ["-map", "0:v", "-map", "[a0]"]
+    # Audio mix filter
+    filters = []
+    if bg_path and voice_path:
+        filters = [
+            "-filter_complex", "[1:a][2:a]amix=inputs=2[aout]",
+            "-map", "0:v", "-map", "[aout]"
+        ]
+    elif bg_path:
+        filters = ["-map", "0:v", "-map", "1:a"]
+    elif voice_path:
+        filters = ["-map", "0:v", "-map", "1:a"]
+    else:
+        # Generate silent track if no audio
+        filters = [
+            "-f", "lavfi",
+            "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+            "-shortest"
+        ]
 
-    elif len(audio_inputs) == 1:
-        # ✅ Only one audio source → no mix needed
-        maps = ["-map", "0:v", "-map", f"{audio_inputs[0]}:a"]
+    cmd += filters
 
-    elif len(audio_inputs) == 2:
-        # ✅ Mix background + voice-over
-        filter_complex = (
-            f"[1:a][2:a]amix=inputs=2:duration=longest:dropout_transition=2[aout]"
-        )
-        maps = ["-map", "0:v", "-map", "[aout]"]
-
-    # ✅ FULL FFmpeg Command
-    cmd = base_cmd
-
-    if filter_complex:
-        cmd += ["-filter_complex", filter_complex]
-
-    cmd += maps
-
-    # ✅ Video encoding
+    # Final encoding parameters
     cmd += [
-        "-vf",
-        "scale=1080:1920:force_original_aspect_ratio=decrease,"
-        "pad=1080:1920:(ow-iw)/2:(oh-ih)/2",
+        "-vf", (
+            "scale=1080:1920:force_original_aspect_ratio=decrease,"
+            "pad=1080:1920:(ow-iw)/2:(oh-ih)/2,format=yuv420p"
+        ),
         "-c:v", "libx264",
-        "-pix_fmt", "yuv420p",
-        "-preset", "veryfast",
+        "-preset", "ultrafast",
         "-crf", "28",
+        "-c:a", "aac",
+        "-shortest",
         output_path
     ]
 
     print("✅ Running FFmpeg command:")
     print(" ".join(cmd))
 
-    # ✅ Run FFmpeg
+    # -------------------------------------------------------
+    # Execute FFmpeg
+    # -------------------------------------------------------
     process = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
     )
-    _, stderr = process.communicate()
+    stdout, stderr = process.communicate()
 
-    print("🔴 FFmpeg Output:")
-    print(stderr)
+    print("🔵 FFmpeg STDOUT:\n", stdout)
+    print("🔴 FFmpeg STDERR:\n", stderr)
 
-    if not os.path.exists(output_path):
-        return jsonify({"error": "FFmpeg failed"}), 500
+    # -------------------------------------------------------
+    # Return result
+    # -------------------------------------------------------
+    if os.path.exists(output_path):
+        print("✅ FFmpeg Completed Successfully!")
+        return send_file(
+            output_path,
+            as_attachment=True,
+            download_name="final_video.mp4",
+            mimetype="video/mp4"
+        )
 
-    return send_file(output_path, mimetype="video/mp4")
+    print("❌ FFmpeg failed to produce output file.")
+    return jsonify({"error": "FFmpeg failed"}), 500
 
 
+# -----------------------------------------------------------
+# HEALTH CHECK ROUTE
+# -----------------------------------------------------------
 @app.route("/")
 def home():
-    return "Backend is running!"
+    return jsonify({"status": "Backend is running!"})
 
 
+# -----------------------------------------------------------
+# MAIN ENTRY POINT
+# -----------------------------------------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
