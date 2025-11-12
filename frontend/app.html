@@ -1,26 +1,72 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Poster Generator & Video Creator</title>
+    <meta charset="UTF-8">
+    <title>Poster & Video Generator</title>
+
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;700&
     family=Noto+Sans+Tamil:wght@400;700&
     family=Noto+Sans+Telugu:wght@400;700&
     family=Noto+Sans+Devanagari:wght@400;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Noto Sans', sans-serif;
+            background-color: #111;
+            color: #f1f1f1;
+            padding: 20px;
+        }
+        h2 {
+            color: #4fc3f7;
+        }
+        label {
+            display: block;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        input, textarea, select, button {
+            margin-top: 5px;
+            padding: 5px;
+            border-radius: 4px;
+            border: none;
+        }
+        input[type="color"], input[type="number"], select {
+            padding: 4px;
+        }
+        button {
+            background-color: #2196f3;
+            color: white;
+            padding: 8px 14px;
+            margin-top: 15px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        button:hover {
+            background-color: #1976d2;
+        }
+        hr {
+            margin: 40px 0;
+            border: 1px solid #333;
+        }
+        .slider-label {
+            margin-right: 10px;
+        }
+    </style>
 </head>
 <body>
 
 <h2>Poster Generator</h2>
 
 <label>Background Image:</label>
-<input type="file" id="bgUpload"><br><br>
+<input type="file" id="bgUpload" accept="image/*"><br><br>
 
 <label>Bottom Image:</label>
-<input type="file" id="bottomUpload"><br><br>
+<input type="file" id="bottomUpload" accept="image/*"><br><br>
 
-<label>Header Text:</label><br>
+<label>Header Text:</label>
 <textarea id="headerText" rows="2" cols="50"></textarea><br><br>
 
-<label>Content Text:</label><br>
+<label>Content Text:</label>
 <textarea id="contentText" rows="6" cols="50"></textarea><br><br>
 
 <label>Font:</label>
@@ -65,9 +111,11 @@
 <label>Background Music:</label>
 <input type="file" id="bgMusic" accept="audio/*"><br><br>
 
-<!-- 🎚️ New Background Music Volume Slider -->
-<label>Background Music Volume:</label>
-<input type="range" id="musicVolume" min="10" max="100" value="30" oninput="updateVolumeLabel(this.value)">
+<!-- 🎚️ Background Music Volume Control -->
+<label class="slider-label">Background Music Volume:</label>
+<input type="range" id="musicVolume" min="10" max="100" value="30"
+       style="width:200px; vertical-align:middle;"
+       oninput="updateVolumeLabel(this.value)">
 <span id="volumeValue">30%</span><br><br>
 
 <label>Voice Over (Optional):</label>
@@ -77,48 +125,51 @@
 
 <script>
 function updateVolumeLabel(val) {
-  document.getElementById("volumeValue").innerText = val + "%";
+    document.getElementById("volumeValue").innerText = val + "%";
 }
 
 async function uploadVideo() {
-  let form = new FormData();
-  let poster = document.getElementById("posterFile").files[0];
+    const form = new FormData();
+    const poster = document.getElementById("posterFile").files[0];
 
-  if (!poster) {
-    alert("Please select a poster image!");
-    return;
-  }
-
-  form.append("poster", poster);
-
-  let bg = document.getElementById("bgMusic").files[0];
-  let voice = document.getElementById("voiceOver").files[0];
-  let volume = document.getElementById("musicVolume").value;
-
-  if (bg) form.append("bg_music", bg);
-  if (voice) form.append("voice_over", voice);
-  form.append("music_volume", volume); // 🎚️ Send volume to backend
-
-  const API_URL = "https://youtubeshorts-backend-production.up.railway.app/api/generate_video";
-
-  try {
-    let res = await fetch(API_URL, { method: "POST", body: form });
-
-    if (!res.ok) {
-      alert("Server error: " + res.status);
-      return;
+    if (!poster) {
+        alert("Please select a poster image!");
+        return;
     }
 
-    let blob = await res.blob();
-    let link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "final_video.mp4";
-    link.click();
+    form.append("poster", poster);
 
-    alert("✅ Video generated successfully!");
-  } catch (err) {
-    alert("Error: " + err.message);
-  }
+    const bg = document.getElementById("bgMusic").files[0];
+    const voice = document.getElementById("voiceOver").files[0];
+    const volume = document.getElementById("musicVolume").value;
+
+    if (bg) form.append("bg_music", bg);
+    if (voice) form.append("voice_over", voice);
+    form.append("music_volume", volume);
+
+    const API_URL = "https://youtubeshorts-backend-production.up.railway.app/api/generate_video";
+
+    try {
+        // Show loading alert
+        alert("🎬 Generating video... Please wait 10–20 seconds.");
+
+        let res = await fetch(API_URL, { method: "POST", body: form });
+
+        if (!res.ok) {
+            alert("❌ Server error: " + res.status);
+            return;
+        }
+
+        let blob = await res.blob();
+        let link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "final_video.mp4";
+        link.click();
+
+        alert("✅ Video generated successfully!");
+    } catch (err) {
+        alert("Error: " + err.message);
+    }
 }
 </script>
 
