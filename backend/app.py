@@ -8,13 +8,13 @@ from flask_cors import CORS
 # Flask App Setup
 # -----------------------------------------------------------
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes (Netlify support)
+CORS(app)  # Allow frontend (Netlify) requests
 
-# Use Railway’s writable temp folder
+# Writable folder for Railway
 UPLOAD_FOLDER = "/tmp/uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Login credentials
+# Basic Login (temporary static)
 USERNAME = "vinothkumar"
 PASSWORD = "admin123"
 
@@ -79,31 +79,41 @@ def generate_video():
     if voice_path:
         cmd += ["-i", voice_path]
 
-    # Choose filter/mapping logic
+    # -------------------------------------------------------
+    # AUDIO MIX LOGIC
+    # -------------------------------------------------------
     if bg_path and voice_path:
-        audio_filter = [
-            "-filter_complex", "[1:a][2:a]amix=inputs=2[aout]",
+        # ✅ Voiceover + background music mix (music lowered to 30%)
+        filters = [
+            "-filter_complex",
+            "[1:a]volume=0.3[a1];[2:a]volume=1.0[a2];"
+            "[a1][a2]amix=inputs=2:duration=longest[aout]",
             "-map", "0:v", "-map", "[aout]"
         ]
     elif bg_path:
-        audio_filter = ["-map", "0:v", "-map", "1:a"]
+        # ✅ Only background music
+        filters = ["-map", "0:v", "-map", "1:a"]
     elif voice_path:
-        audio_filter = ["-map", "0:v", "-map", "1:a"]
+        # ✅ Only voiceover
+        filters = ["-map", "0:v", "-map", "1:a"]
     else:
-        # Create silent audio when none provided
-        audio_filter = ["-f", "lavfi", "-i", "anullsrc", "-shortest"]
+        # ✅ No audio → add silent track
+        filters = ["-f", "lavfi", "-i", "anullsrc", "-shortest"]
 
-    cmd += audio_filter
+    cmd += filters
 
     # -------------------------------------------------------
-    # Add lightweight FFmpeg video settings
+    # FFmpeg Video Settings
     # -------------------------------------------------------
     cmd += [
-        "-t", "15",  # video duration
+        "-t", "15",  # Duration
         "-vf", "scale=720:1280:force_original_aspect_ratio=decrease,"
                "pad=720:1280:(ow-iw)/2:(oh-ih)/2,format=yuv420p",
-        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "30",
-        "-c:a", "aac", "-shortest",
+        "-c:v", "libx264",
+        "-preset", "ultrafast",
+        "-crf", "30",
+        "-c:a", "aac",
+        "-shortest",
         output_path
     ]
 
@@ -120,7 +130,7 @@ def generate_video():
     print("🔴 FFmpeg STDERR:\n", stderr)
 
     # -------------------------------------------------------
-    # Return video file if created
+    # Return output
     # -------------------------------------------------------
     if os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
         print("✅ FFmpeg Completed Successfully!")
@@ -131,8 +141,8 @@ def generate_video():
             mimetype="video/mp4"
         )
     else:
-        print("❌ FFmpeg failed or empty output.")
-        return jsonify({"error": "Video generation failed. Check logs."}), 500
+        print("❌ FFmpeg failed or empty output file.")
+        return jsonify({"error": "Video generation failed."}), 500
 
 
 # -----------------------------------------------------------
@@ -144,7 +154,7 @@ def home():
 
 
 # -----------------------------------------------------------
-# RUN APP LOCALLY (for testing)
+# RUN LOCALLY
 # -----------------------------------------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
