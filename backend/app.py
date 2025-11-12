@@ -8,13 +8,13 @@ from flask_cors import CORS
 # Flask App Setup
 # -----------------------------------------------------------
 app = Flask(__name__)
-CORS(app)  # Allow frontend (Netlify) requests
+CORS(app)  # Enable CORS for Netlify frontend
 
-# Writable folder for Railway
+# Writable folder (Railway safe)
 UPLOAD_FOLDER = "/tmp/uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Basic Login (temporary static)
+# ✅ Working Login Credentials
 USERNAME = "vinothkumar"
 PASSWORD = "admin123"
 
@@ -39,7 +39,6 @@ def login():
 def generate_video():
     print("✅ Received /api/generate_video request")
 
-    # Collect uploaded files
     poster = request.files.get("poster")
     bg_music = request.files.get("bg_music")
     voice_over = request.files.get("voice_over")
@@ -48,7 +47,7 @@ def generate_video():
         return jsonify({"error": "Poster image required"}), 400
 
     # -------------------------------------------------------
-    # Save input files
+    # Save uploaded files
     # -------------------------------------------------------
     poster_path = os.path.join(UPLOAD_FOLDER, f"poster_{uuid.uuid4()}.png")
     poster.save(poster_path)
@@ -68,45 +67,48 @@ def generate_video():
     # -------------------------------------------------------
     # Build FFmpeg Command
     # -------------------------------------------------------
-    cmd = [
-        "ffmpeg", "-y",
-        "-loop", "1", "-i", poster_path
-    ]
+    cmd = ["ffmpeg", "-y", "-loop", "1", "-i", poster_path]
 
-    # Add optional inputs
     if bg_path:
         cmd += ["-i", bg_path]
     if voice_path:
         cmd += ["-i", voice_path]
 
     # -------------------------------------------------------
-    # AUDIO MIX LOGIC
+    # AUDIO MIXING LOGIC (with dynamic volume)
     # -------------------------------------------------------
+    music_volume = request.form.get("music_volume", "30")
+    try:
+        user_volume = float(music_volume)
+    except ValueError:
+        user_volume = 30.0
+
+    bg_volume_level = round(user_volume / 100, 2)  # convert to 0.0–1.0 range
+
     if bg_path and voice_path:
-        # ✅ Voiceover + background music mix (music lowered to 30%)
+        # ✅ Dynamic background music volume + normalize
         filters = [
             "-filter_complex",
-            "[1:a]volume=0.3[a1];[2:a]volume=1.0[a2];"
-            "[a1][a2]amix=inputs=2:duration=longest[aout]",
-            "-map", "0:v", "-map", "[aout]"
+            f"[1:a]volume={bg_volume_level}[a1];"
+            "[2:a]volume=1.0[a2];"
+            "[a1][a2]amix=inputs=2:duration=longest:dropout_transition=2[aout];"
+            "[aout]loudnorm[audio_final]",
+            "-map", "0:v", "-map", "[audio_final]"
         ]
     elif bg_path:
-        # ✅ Only background music
         filters = ["-map", "0:v", "-map", "1:a"]
     elif voice_path:
-        # ✅ Only voiceover
         filters = ["-map", "0:v", "-map", "1:a"]
     else:
-        # ✅ No audio → add silent track
         filters = ["-f", "lavfi", "-i", "anullsrc", "-shortest"]
 
     cmd += filters
 
     # -------------------------------------------------------
-    # FFmpeg Video Settings
+    # Video Encoding Settings
     # -------------------------------------------------------
     cmd += [
-        "-t", "15",  # Duration
+        "-t", "15",  # duration in seconds
         "-vf", "scale=720:1280:force_original_aspect_ratio=decrease,"
                "pad=720:1280:(ow-iw)/2:(oh-ih)/2,format=yuv420p",
         "-c:v", "libx264",
@@ -129,9 +131,6 @@ def generate_video():
     print("🔵 FFmpeg STDOUT:\n", stdout)
     print("🔴 FFmpeg STDERR:\n", stderr)
 
-    # -------------------------------------------------------
-    # Return output
-    # -------------------------------------------------------
     if os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
         print("✅ FFmpeg Completed Successfully!")
         return send_file(
@@ -141,7 +140,7 @@ def generate_video():
             mimetype="video/mp4"
         )
     else:
-        print("❌ FFmpeg failed or empty output file.")
+        print("❌ FFmpeg failed or output file too small.")
         return jsonify({"error": "Video generation failed."}), 500
 
 
@@ -154,7 +153,7 @@ def home():
 
 
 # -----------------------------------------------------------
-# RUN LOCALLY
+# LOCAL RUN
 # -----------------------------------------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
