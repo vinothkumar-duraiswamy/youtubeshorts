@@ -50,7 +50,7 @@ def generate_video():
 
     output_path = os.path.join(UPLOAD_FOLDER, f"final_{uuid.uuid4()}.mp4")
 
-    # Get background volume from frontend
+    # Get volume setting from frontend
     music_volume = request.form.get("music_volume", "30")
     try:
         user_volume = float(music_volume)
@@ -66,11 +66,11 @@ def generate_video():
     if voice_path:
         cmd += ["-i", voice_path]
 
-    # Build filters
     filter_complex = ""
     maps = []
 
     if bg_path and voice_path:
+        # ✅ Mix background + voice
         filter_complex = (
             f"[1:a]volume={bg_volume_level}[bg];"
             f"[2:a]volume=1.0[voice];"
@@ -82,7 +82,7 @@ def generate_video():
     elif voice_path:
         maps = ["-map", "0:v", "-map", "1:a"]
     else:
-        # No audio → generate silent audio
+        # ✅ Generate silent track if no audio
         cmd += ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"]
         maps = ["-map", "0:v", "-map", "1:a"]
 
@@ -90,15 +90,19 @@ def generate_video():
         cmd += ["-filter_complex", filter_complex]
 
     cmd += maps
+
+    # ✅ Optimized FFmpeg command for Railway (low memory)
     cmd += [
-        "-t", "60",
         "-vf", "scale=720:1280:force_original_aspect_ratio=decrease,"
                "pad=720:1280:(ow-iw)/2:(oh-ih)/2,format=yuv420p",
         "-c:v", "libx264",
         "-preset", "ultrafast",
         "-crf", "30",
         "-c:a", "aac",
-        "-shortest",
+        "-pix_fmt", "yuv420p",
+        "-threads", "1",      # ✅ prevent memory spikes
+        "-to", "60",          # ✅ limit to 60s (safe)
+        "-shortest",          # ✅ stops when audio ends earlier
         output_path
     ]
 
@@ -125,4 +129,3 @@ def home():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
-
