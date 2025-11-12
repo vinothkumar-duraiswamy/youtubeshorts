@@ -91,7 +91,7 @@ def generate_video():
 
     cmd += maps
     cmd += [
-        "-t", "15",
+        "-t", "60",
         "-vf", "scale=720:1280:force_original_aspect_ratio=decrease,"
                "pad=720:1280:(ow-iw)/2:(oh-ih)/2,format=yuv420p",
         "-c:v", "libx264",
@@ -125,3 +125,4 @@ def home():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
+
